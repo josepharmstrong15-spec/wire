@@ -168,13 +168,20 @@ def parse_feed(xml_bytes, cat, src):
 def fetch_one(spec):
     cat, src, url, cap, okc = spec
     fetch = get_espn if "espn.com" in url else get   # ESPN rejects spoofed browser UAs
-    try:
-        items = parse_feed(fetch(url), cat, src)
-        if okc:
-            items = [i for i in items if OKC_RE.search(i["t"])]
-        return items[:cap], None
-    except Exception as e:
-        return [], "%s: %s" % (src, type(e).__name__)
+    last = None
+    # One retry: under concurrency some hosts (ESPN especially) return a truncated
+    # or throttled body that fails XML parsing, then serve fine a moment later.
+    for attempt in range(2):
+        try:
+            items = parse_feed(fetch(url), cat, src)
+            if okc:
+                items = [i for i in items if OKC_RE.search(i["t"])]
+            return items[:cap], None
+        except Exception as e:
+            last = e
+            if attempt == 0:
+                time.sleep(1.5)
+    return [], "%s: %s" % (src, type(last).__name__)
 
 
 def espn_news():
