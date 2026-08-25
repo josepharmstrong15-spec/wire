@@ -101,6 +101,8 @@
   .src.c-faith{color:var(--faith)} .src.c-tech{color:var(--tech)}
   .sep{opacity:.4}
   .fresh{color:#2dd4a7;font-weight:600}
+  .also{margin-left:auto;font-size:10.5px;color:var(--dim2);border:1px solid var(--line);
+        border-radius:999px;padding:1px 7px;white-space:nowrap}
 
   /* ---------- states ---------- */
   .empty{padding:56px 30px;text-align:center;color:var(--dim2);font-size:14px;line-height:1.6}
@@ -142,35 +144,56 @@
    FEEDS — every one verified live. Free / non-paywalled only.
    ============================================================ */
 var FEEDS = [
-  // ---- TOP: US & World (wires + WSJ/WaPo free feeds) ----
-  {c:"top", s:"BBC",        u:"https://feeds.bbci.co.uk/news/world/rss.xml",                        cap:7},
-  {c:"top", s:"BBC US",     u:"https://feeds.bbci.co.uk/news/world/us_and_canada/rss.xml",          cap:5},
-  {c:"top", s:"NPR",        u:"https://feeds.npr.org/1001/rss.xml",                                 cap:7},
-  {c:"top", s:"WaPo",       u:"https://feeds.washingtonpost.com/rss/national",                      cap:6},
-  {c:"top", s:"WaPo World", u:"https://feeds.washingtonpost.com/rss/world",                         cap:5},
-  {c:"top", s:"WSJ",        u:"https://feeds.content.dowjones.io/public/rss/RSSWorldNews",          cap:7},
-  {c:"top", s:"PBS",        u:"https://www.pbs.org/newshour/feeds/rss/headlines",                   cap:5},
+  // Free sources only. WSJ (HTTP 401 on every feed) and Washington Post (metered) were
+  // removed; The Verge was removed after 2 of 3 sampled articles came back schema-gated.
+  {c:"top", s:"BBC",          u:"https://feeds.bbci.co.uk/news/world/rss.xml",                cap:10},
+  {c:"top", s:"BBC US",       u:"https://feeds.bbci.co.uk/news/world/us_and_canada/rss.xml",  cap:8},
+  {c:"top", s:"PBS",          u:"https://www.pbs.org/newshour/feeds/rss/headlines",           cap:10},
+  {c:"top", s:"NPR",          u:"https://feeds.npr.org/1001/rss.xml",                         cap:10},
+  {c:"top", s:"NPR National", u:"https://feeds.npr.org/1003/rss.xml",                         cap:8},
+  {c:"top", s:"ABC News",     u:"https://abcnews.go.com/abcnews/topstories",                  cap:10},
+  {c:"top", s:"CBS News",     u:"https://www.cbsnews.com/latest/rss/main",                    cap:10},
 
-  // ---- THUNDER ----
-  {c:"thunder", s:"Daily Thunder",   u:"https://dailythunder.com/feed/",                            cap:8},
-  {c:"thunder", s:"ESPN NBA",        u:"https://www.espn.com/espn/rss/nba/news",       cap:8, okc:true},
-  {c:"thunder", s:"Thunderous Int.", u:"https://thunderousintentions.com/feed/",                    cap:4},
+  {c:"thunder", s:"Daily Thunder",   u:"https://dailythunder.com/feed/",                      cap:8},
+  {c:"thunder", s:"ESPN NBA",        u:"https://www.espn.com/espn/rss/nba/news",     cap:8, okc:true},
+  {c:"thunder", s:"Thunderous Int.", u:"https://thunderousintentions.com/feed/",              cap:4},
 
-  // ---- FAITH ----
-  {c:"faith", s:"Christianity Today", u:"https://www.christianitytoday.com/rss",                    cap:7},
-  {c:"faith", s:"RNS",                u:"https://religionnews.com/feed/",                           cap:7},
-  {c:"faith", s:"Gospel Coalition",   u:"https://www.thegospelcoalition.org/feed/",                 cap:6},
-  {c:"faith", s:"Relevant",           u:"https://relevantmagazine.com/feed/",                       cap:5},
+  {c:"faith", s:"RNS",                u:"https://religionnews.com/feed/",                     cap:8},
+  {c:"faith", s:"Christianity Today", u:"https://www.christianitytoday.com/rss",              cap:7},
+  {c:"faith", s:"Gospel Coalition",   u:"https://www.thegospelcoalition.org/feed/",           cap:6},
+  {c:"faith", s:"Relevant",           u:"https://relevantmagazine.com/feed/",                 cap:5},
 
-  // ---- BUSINESS & TECH ----
-  {c:"tech", s:"WSJ Markets", u:"https://feeds.content.dowjones.io/public/rss/RSSMarketsMain",      cap:6},
-  {c:"tech", s:"WSJ Biz",     u:"https://feeds.content.dowjones.io/public/rss/WSJcomUSBusiness",    cap:6},
-  {c:"tech", s:"WSJ Tech",    u:"https://feeds.content.dowjones.io/public/rss/RSSWSJD",             cap:6},
-  {c:"tech", s:"CNBC",        u:"https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114", cap:6},
-  {c:"tech", s:"WaPo Biz",    u:"https://feeds.washingtonpost.com/rss/business",                    cap:5},
-  {c:"tech", s:"Ars Technica",u:"https://feeds.arstechnica.com/arstechnica/index",                  cap:5},
-  {c:"tech", s:"The Verge",   u:"https://www.theverge.com/rss/index.xml",                           cap:5}
+  {c:"tech", s:"CNBC",         u:"https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114", cap:8},
+  {c:"tech", s:"BBC Business", u:"https://feeds.bbci.co.uk/news/business/rss.xml",            cap:7},
+  {c:"tech", s:"NPR Business", u:"https://feeds.npr.org/1006/rss.xml",                        cap:6},
+  {c:"tech", s:"Ars Technica", u:"https://feeds.arstechnica.com/arstechnica/index",           cap:6},
+  {c:"tech", s:"TechCrunch",   u:"https://techcrunch.com/feed/",                              cap:6},
+  {c:"tech", s:"Engadget",     u:"https://www.engadget.com/rss.xml",                          cap:5}
 ];
+
+// Which outlet wins when several cover the same story. Lower = preferred.
+var SOURCE_RANK = {
+  "BBC":1, "BBC US":1, "PBS":2, "NPR":3, "NPR National":3, "ABC News":4, "CBS News":5,
+  "ESPN":1, "Daily Thunder":2, "Thunderous Int.":4,
+  "RNS":1, "Christianity Today":2, "Gospel Coalition":3, "Relevant":4,
+  "CNBC":1, "BBC Business":2, "NPR Business":3, "Ars Technica":4, "TechCrunch":5, "Engadget":6
+};
+
+// Never link out to a domain that demands a subscription.
+var PAYWALL_DOMAINS = ["wsj.com","washingtonpost.com","nytimes.com","ft.com","economist.com",
+  "bloomberg.com","theathletic.com","newyorker.com","barrons.com","theinformation.com",
+  "seekingalpha.com","telegraph.co.uk","thetimes.co.uk"];
+
+var STOPWORDS = {};
+("a an the and or but of in on at to for with from by as is are was were be been being that this " +
+ "these those it its his her their they them he she you your we our us i not no new say says said " +
+ "after before over under about into out up down off then than who what when where why how which " +
+ "will would can could may might must should has have had do does did more most some any all one " +
+ "two amid watch live update updates video photos analysis opinion report reports").split(" ")
+  .forEach(function(w){ STOPWORDS[w]=1; });
+
+var SIM_THRESHOLD = 0.45;              // tuned on live data; below this, false merges appear
+var CLUSTER_WINDOW = 48*3600*1000;
 
 var CATS = [
   {k:"top",     label:"Top"},
@@ -325,6 +348,11 @@ function fetchFeed(f, seed){
   };
   return attempt(0).then(function(items){
     if(f.okc) items = items.filter(function(x){ return OKC_RE.test(x.t); });
+    items = items.filter(function(x){
+      var u = (x.l || "").toLowerCase();
+      for(var i=0;i<PAYWALL_DOMAINS.length;i++) if(u.indexOf(PAYWALL_DOMAINS[i]) >= 0) return false;
+      return true;
+    });
     return items.slice(0, f.cap || 8);
   });
 }
@@ -419,6 +447,7 @@ function setProg(f){
 }
 
 function mergeIn(list, incoming){
+  viewCache = null;
   var seen = {};
   list.forEach(function(x){ seen[normKey(x.t)] = 1; });
   incoming.forEach(function(x){
@@ -513,12 +542,123 @@ function restore(){
 }
 
 /* ============================================================
+   Story clustering - one article per story, best source wins.
+   Mirrors cluster_stories() in build_news.py; keep the two in sync.
+   ============================================================ */
+function tokenize(title){
+  var out = {}, w = title.toLowerCase().replace(/[^a-z0-9 ]/g," ").split(/\s+/);
+  for(var i=0;i<w.length;i++){
+    var x = w[i];
+    if(x.length < 3 || STOPWORDS[x]) continue;
+    if(x.length > 4 && x.charAt(x.length-1) === "s" && x.slice(-2) !== "ss") x = x.slice(0,-1);
+    out[x] = 1;
+  }
+  return Object.keys(out);
+}
+
+function buildIdf(list){
+  var n = list.length || 1, df = {};
+  list.forEach(function(it){
+    it._k = it._k || tokenize(it.t);
+    it._k.forEach(function(w){ df[w] = (df[w]||0) + 1; });
+  });
+  var idf = {};
+  for(var w in df) idf[w] = Math.log(n/(1+df[w])) + 0.2;
+  return idf;
+}
+
+function simScore(a, b, idf){
+  var setB = {}, i;
+  for(i=0;i<b._k.length;i++) setB[b._k[i]] = 1;
+  var shared = [];
+  for(i=0;i<a._k.length;i++) if(setB[a._k[i]]) shared.push(a._k[i]);
+  if(shared.length < 2) return 0;
+  var num = 0, wa = 0, wb = 0;
+  shared.forEach(function(w){ num += (idf[w]||0.2); });
+  a._k.forEach(function(w){ wa += (idf[w]||0.2); });
+  b._k.forEach(function(w){ wb += (idf[w]||0.2); });
+  var d = Math.min(wa, wb);
+  return d > 0 ? num/d : 0;
+}
+
+function rankOf(it){ var r = SOURCE_RANK[it.s]; return r === undefined ? 50 : r; }
+
+// Collapses same-story coverage and returns one representative per story.
+function clusterItems(list){
+  if(list.length < 2) return list.slice();
+  var idf = buildIdf(list);
+  var sorted = list.slice().sort(function(a,b){ return b.ts - a.ts; });
+  var clusters = [], byKey = {}, i;
+
+  // Pass 1: seed from snapshot representatives. Their `mk` lists say exactly which
+  // headlines the server already folded in, so live copies reattach instead of
+  // forming a duplicate cluster for the same story.
+  sorted.forEach(function(it){
+    if(!it.mk || !it.mk.length) return;
+    var c = {ts:it.ts, members:[it]};
+    clusters.push(c);
+    byKey[normKey(it.t)] = c;
+    it.mk.forEach(function(k){ if(!byKey[k]) byKey[k] = c; });
+  });
+
+  // Pass 2: everything else, by exact key first, then similarity.
+  sorted.forEach(function(it){
+    if(it.mk && it.mk.length) return;
+    var k = normKey(it.t);
+    if(byKey[k]){ byKey[k].members.push(it); return; }
+    var best = null, bestSim = 0;
+    for(i=0;i<clusters.length;i++){
+      var c = clusters[i];
+      if(Math.abs(it.ts - c.ts) > CLUSTER_WINDOW) continue;
+      var sm = 0;                       // single-link: compare against every member
+      for(var j=0;j<c.members.length;j++){
+        var v = simScore(it, c.members[j], idf);
+        if(v > sm) sm = v;
+      }
+      if(sm > bestSim){ bestSim = sm; best = c; }
+    }
+    if(best && bestSim >= SIM_THRESHOLD) best.members.push(it);
+    else { best = {ts:it.ts, members:[it]}; clusters.push(best); }
+    byKey[k] = best;
+  });
+
+  return clusters.map(function(c){
+    var members = c.members.slice().sort(function(a,b){
+      return (rankOf(a) - rankOf(b)) || (b.ts - a.ts);
+    });
+    var rep = members[0], seen = {}, also = [];
+    members.forEach(function(m){
+      if(m.s !== rep.s && !seen[m.s]){ seen[m.s] = 1; also.push(m.s); }
+      (m.also || []).forEach(function(x){
+        if(x !== rep.s && !seen[x]){ seen[x] = 1; also.push(x); }
+      });
+    });
+    if(!also.length) return rep;
+    var out = {};
+    for(var kk in rep) if(kk !== "_k") out[kk] = rep[kk];
+    out.n = also.length; out.also = also.slice(0,4);
+    return out;
+  }).sort(function(a,b){ return b.ts - a.ts; });
+}
+
+/* ============================================================
    Render
    ============================================================ */
+// Clustered view per category, rebuilt only when the underlying items change.
+var viewCache = null, viewStamp = -1;
+function views(){
+  if(viewCache && viewStamp === state.items.length + state.fetchedAt) return viewCache;
+  var v = {};
+  ["top","thunder","faith","tech"].forEach(function(k){
+    v[k] = clusterItems(state.items.filter(function(x){ return x.c === k; }));
+  });
+  viewCache = v; viewStamp = state.items.length + state.fetchedAt;
+  return v;
+}
+
 function counts(){
-  var m = {top:0,thunder:0,faith:0,tech:0};
-  state.items.forEach(function(x){ if(m[x.c] !== undefined) m[x.c]++; });
-  return m;
+  var v = views();
+  return {top:v.top.length, thunder:v.thunder.length, faith:v.faith.length, tech:v.tech.length};
 }
 
 function renderTabs(){
@@ -588,12 +728,12 @@ function render(){
   renderScore();
 
   var feed = $("feed");
-  var list = state.items.filter(function(x){ return x.c === state.cat; });
+  var list = views()[state.cat] || [];
 
   // stamp
   if(state.fetchedAt){
     $("stampT").textContent = "Updated " + ago(state.fetchedAt);
-    $("stampN").textContent = state.items.length + " stories";
+    $("stampN").textContent = counts()[state.cat] + " stories";
   }
 
   if(!list.length){
@@ -638,6 +778,8 @@ function render(){
                   '<span class="src c-' + x.c + '">' + esc(x.s) + '</span>' +
                   (timeTxt ? '<span class="sep">&middot;</span><span' +
                      (age < 3600e3 ? ' class="fresh"' : '') + '>' + timeTxt + '</span>' : '') +
+                  (x.n ? '<span class="also" title="' + esc((x.also||[]).join(", ")) + '">+' +
+                     x.n + ' outlet' + (x.n > 1 ? 's' : '') + '</span>' : '') +
                 '</div>' +
               '</a>';
     });
