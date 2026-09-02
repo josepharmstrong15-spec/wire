@@ -22,6 +22,20 @@ below it contained a genuine false positive (a `$100 billion` SpaceX story vs a
 
 Which outlet wins is set by `SOURCE_RANK` — lower number wins. Reorder it to taste.
 
+## Search
+
+The bar at the top filters every headline currently loaded, across all four sections at
+once. Results are newest-first, tagged with the section they came from, with matches
+highlighted.
+
+- Multiple words are AND-ed: `iran oil` needs both.
+- `"quoted phrases"` match as a unit.
+- Matches headline text, source name, and the outlets folded in by clustering.
+- Escape, the X, or Clear exits; tapping a section tab also exits.
+
+It searches loaded headlines, not full article text — roughly the last 150 stories held
+in memory, which is everything `news.json` carries plus whatever the live refresh added.
+
 ## No paywalls
 
 - WSJ was removed: every feed returns **HTTP 401** on the article itself.
