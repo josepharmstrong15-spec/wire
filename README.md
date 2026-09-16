@@ -34,8 +34,8 @@ a partial outage still yields a useful banner:
 
 | Data | Endpoint |
 |---|---|
-| Current conditions | `/stations/KOKC/observations/latest` |
-| High and low | `/gridpoints/OUN,97,94/forecast` |
+| Current conditions | `/stations/KOUN/observations/latest`, falling back to `KOKC` |
+| High and low | `/gridpoints/OUN/100,83/forecast` |
 | Active alerts | `/alerts/active?point=lat,lon` |
 
 An active alert adds a badge. Severe and Extreme alerts (tornado and severe thunderstorm
@@ -47,7 +47,11 @@ broken bar.
 
 **Changing the location:** `GET https://api.weather.gov/points/<lat>,<lon>`, then copy
 `gridId/gridX/gridY` and the nearest entry from `observationStations` into the `WX` block
-in both `index.html` and `build_news.py`. It currently points at Oklahoma City.
+in both `index.html` and `build_news.py`. It currently points at Norman, OK.
+
+KOUN (Norman / Max Westheimer) is the nearest station but sometimes reports a blank
+condition string or drops out, so `stations` is a list tried in order with KOKC as the
+backstop.
 
 ## Search
 
