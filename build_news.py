@@ -71,10 +71,12 @@ all one two amid watch live update updates video photos analysis opinion report 
 # To move it, GET https://api.weather.gov/points/<lat>,<lon> and copy gridId/gridX/gridY
 # plus the nearest station from the observationStations list.
 WX = {
-    "lat": 35.4676, "lon": -97.5164,
-    "grid": "OUN/97,94",
-    "station": "KOKC",
-    "label": "Oklahoma City",
+    "lat": 35.2226, "lon": -97.4395,
+    "grid": "OUN/100,83",
+    # KOUN is closest to Norman but occasionally reports a blank condition or drops
+    # out; KOKC is the backstop. Tried in order until one returns a temperature.
+    "stations": ["KOUN", "KOKC"],
+    "label": "Norman",
 }
 WX_LINK = "https://forecast.weather.gov/MapClick.php?lat=%s&lon=%s" % (WX["lat"], WX["lon"])
 
@@ -386,14 +388,17 @@ def fetch_weather():
     """Current conditions, today's high/low, and any active alert. None if unavailable."""
     out = {"label": WX["label"], "link": WX_LINK}
 
-    try:
-        obs = get_nws("https://api.weather.gov/stations/%s/observations/latest" % WX["station"])["properties"]
-        c = (obs.get("temperature") or {}).get("value")
-        if c is not None:
+    for station in WX["stations"]:
+        try:
+            obs = get_nws("https://api.weather.gov/stations/%s/observations/latest" % station)["properties"]
+            c = (obs.get("temperature") or {}).get("value")
+            if c is None:
+                continue
             out["temp"] = int(round(c * 9.0 / 5.0 + 32))
-        out["text"] = obs.get("textDescription") or ""
-    except Exception:
-        pass
+            out["text"] = obs.get("textDescription") or ""
+            break
+        except Exception:
+            continue
 
     try:
         periods = get_nws("https://api.weather.gov/gridpoints/%s/forecast" % WX["grid"])["properties"]["periods"]
