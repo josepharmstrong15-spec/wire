@@ -263,11 +263,13 @@ var STOPWORDS = {};
 // To move it, GET https://api.weather.gov/points/<lat>,<lon> and copy gridId/gridX/gridY
 // and the nearest station from observationStations. Mirror the change in build_news.py.
 var WX = {
-  lat: 35.4676, lon: -97.5164,
-  grid: "OUN/97,94",
-  station: "KOKC",
-  label: "Oklahoma City",
-  link: "https://forecast.weather.gov/MapClick.php?lat=35.4676&lon=-97.5164"
+  lat: 35.2226, lon: -97.4395,
+  grid: "OUN/100,83",
+  // KOUN is closest to Norman but occasionally reports a blank condition or drops out;
+  // KOKC is the backstop. Tried in order until one returns a temperature.
+  stations: ["KOUN", "KOKC"],
+  label: "Norman",
+  link: "https://forecast.weather.gov/MapClick.php?lat=35.2226&lon=-97.4395"
 };
 
 var SIM_THRESHOLD = 0.45;              // tuned on live data; below this, false merges appear
@@ -739,11 +741,16 @@ function nws(path){
 function loadWeather(){
   var out = {label: WX.label, link: WX.link};
 
-  var obs = nws("/stations/" + WX.station + "/observations/latest").then(function(d){
-    var p = d.properties || {}, c = (p.temperature || {}).value;
-    if(c !== null && c !== undefined) out.temp = Math.round(c * 9 / 5 + 32);
-    out.text = p.textDescription || "";
-  }).catch(function(){});
+  // Walk the station list until one returns a usable temperature.
+  var obs = (function tryStation(i){
+    if(i >= WX.stations.length) return Promise.resolve();
+    return nws("/stations/" + WX.stations[i] + "/observations/latest").then(function(d){
+      var p = d.properties || {}, c = (p.temperature || {}).value;
+      if(c === null || c === undefined) return tryStation(i + 1);
+      out.temp = Math.round(c * 9 / 5 + 32);
+      out.text = p.textDescription || "";
+    }).catch(function(){ return tryStation(i + 1); });
+  })(0);
 
   var fc = nws("/gridpoints/" + WX.grid + "/forecast").then(function(d){
     var ps = ((d.properties || {}).periods) || [];
