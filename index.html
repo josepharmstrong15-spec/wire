@@ -104,6 +104,26 @@
   .sep{opacity:.4}
   .fresh{color:#2dd4a7;font-weight:600}
 
+  /* ---------- weather banner ---------- */
+  .wx{display:flex;align-items:center;gap:10px;margin:0 12px 9px;padding:8px 11px;
+    background:var(--surface);border:1px solid var(--line);border-radius:11px;cursor:pointer}
+  .wx:active{background:var(--surface2)}
+  .wx .t{font:700 20px/1 -apple-system,BlinkMacSystemFont,sans-serif;letter-spacing:-.6px;
+    font-variant-numeric:tabular-nums;flex:0 0 auto}
+  .wx .mid{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px}
+  .wx .c{font-size:13px;font-weight:600;line-height:1.2;white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis}
+  .wx .s{font-size:11px;color:var(--dim2);line-height:1.2;white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis}
+  .wx .chev{width:14px;height:14px;flex:0 0 14px;color:var(--dim2)}
+  .wx .warn{flex:0 0 auto;font-size:10px;font-weight:700;letter-spacing:.5px;
+    text-transform:uppercase;padding:3px 7px;border-radius:6px;white-space:nowrap;
+    background:#3a2410;color:#f5a524;border:1px solid #5c3a16}
+  /* an active watch or warning takes the whole banner */
+  .wx.sev{background:linear-gradient(135deg,#3a1410,#1b1f26);border-color:#6e2a1e}
+  .wx.sev .warn{background:#ff4d4d;color:#fff;border-color:#ff4d4d}
+  .wx.sev .t{color:#ff8a7a}
+
   /* ---------- search ---------- */
   #searchForm{padding:0 12px 9px}
   .search{display:flex;align-items:center;gap:8px;background:var(--surface);
@@ -160,6 +180,7 @@
       </svg>
     </button>
   </div>
+  <a id="wx" class="wx" hidden target="_blank" rel="noopener"></a>
   <form id="searchForm" autocomplete="off">
     <div class="search">
       <svg class="mag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
@@ -238,6 +259,17 @@ var STOPWORDS = {};
  "two amid watch live update updates video photos analysis opinion report reports").split(" ")
   .forEach(function(w){ STOPWORDS[w]=1; });
 
+// Local weather. All National Weather Service: free, no key, no ads, no video, CORS open.
+// To move it, GET https://api.weather.gov/points/<lat>,<lon> and copy gridId/gridX/gridY
+// and the nearest station from observationStations. Mirror the change in build_news.py.
+var WX = {
+  lat: 35.4676, lon: -97.5164,
+  grid: "OUN/97,94",
+  station: "KOKC",
+  label: "Oklahoma City",
+  link: "https://forecast.weather.gov/MapClick.php?lat=35.4676&lon=-97.5164"
+};
+
 var SIM_THRESHOLD = 0.45;              // tuned on live data; below this, false merges appear
 var CLUSTER_WINDOW = 48*3600*1000;
 
@@ -262,7 +294,7 @@ var CACHE_KEY="wire.cache.v1", READ_KEY="wire.read.v1", STALE_MS=15*60*1000;
 /* ============================================================
    State
    ============================================================ */
-var state = { items:[], cat:"top", q:"", loading:false, booting:false, fetchedAt:0, okGames:null, ok:0, fail:0 };
+var state = { items:[], cat:"top", q:"", wx:null, loading:false, booting:false, fetchedAt:0, okGames:null, ok:0, fail:0 };
 var readSet = new Set();
 try { readSet = new Set(JSON.parse(localStorage.getItem(READ_KEY) || "[]")); } catch(e){}
 
@@ -522,6 +554,7 @@ function loadSnapshot(fresh){
       state.items = mergeIn(state.items.slice(), d.items);
       state.booting = false;
       if(d.games && !state.okGames){ state.okGames = d.games; renderScore(); }
+      if(d.wx && !state.wx){ state.wx = d.wx; renderWx(); }
       if(d.at) state.fetchedAt = Math.max(state.fetchedAt || 0, d.at);
       paintSoon();
       return true;
@@ -540,6 +573,7 @@ function load(){
   espnSchedule().then(function(sch){
     if(sch){ state.okGames = sch; renderScore(); }
   });
+  loadWeather();
 
   var tasks = FEEDS.map(function(f, i){
     return function(){
@@ -572,7 +606,8 @@ function save(){
     localStorage.setItem(CACHE_KEY, JSON.stringify({
       at: state.fetchedAt,
       items: state.items.slice(0,400),
-      games: state.okGames
+      games: state.okGames,
+      wx: state.wx
     }));
   }catch(e){}
 }
@@ -581,6 +616,7 @@ function restore(){
     var d = JSON.parse(localStorage.getItem(CACHE_KEY) || "null");
     if(d && d.items && d.items.length){
       state.items = d.items; state.fetchedAt = d.at || 0; state.okGames = d.games || null;
+      state.wx = d.wx || null;
       return true;
     }
   }catch(e){}
@@ -685,6 +721,93 @@ function clusterItems(list){
     out.n = also.length; out.also = also.slice(0,4);
     return out;
   }).sort(function(a,b){ return b.ts - a.ts; });
+}
+
+/* ============================================================
+   Weather - National Weather Service, no key and no proxy needed
+   ============================================================ */
+function nws(path){
+  return withTimeout(fetch("https://api.weather.gov" + path, {
+    cache: "no-store",
+    headers: {"Accept": "application/geo+json"}
+  }), 9000).then(function(r){
+    if(!r.ok) throw new Error("nws " + r.status);
+    return r.json();
+  });
+}
+
+function loadWeather(){
+  var out = {label: WX.label, link: WX.link};
+
+  var obs = nws("/stations/" + WX.station + "/observations/latest").then(function(d){
+    var p = d.properties || {}, c = (p.temperature || {}).value;
+    if(c !== null && c !== undefined) out.temp = Math.round(c * 9 / 5 + 32);
+    out.text = p.textDescription || "";
+  }).catch(function(){});
+
+  var fc = nws("/gridpoints/" + WX.grid + "/forecast").then(function(d){
+    var ps = ((d.properties || {}).periods) || [];
+    // Order flips after dark, so pick by isDaytime rather than by index.
+    for(var i = 0; i < Math.min(ps.length, 4); i++){
+      if(ps[i].isDaytime && out.hi === undefined){
+        out.hi = ps[i].temperature; out.when = ps[i].name;
+        out.short = ps[i].shortForecast || "";
+      } else if(!ps[i].isDaytime && out.lo === undefined){
+        out.lo = ps[i].temperature;
+      }
+    }
+  }).catch(function(){});
+
+  var al = nws("/alerts/active?point=" + WX.lat + "," + WX.lon).then(function(d){
+    var f = (d.features || []).slice();
+    var rank = {Extreme:0, Severe:1, Moderate:2, Minor:3, Unknown:4};
+    f.sort(function(a, b){
+      var ra = rank[(a.properties||{}).severity], rb = rank[(b.properties||{}).severity];
+      return (ra === undefined ? 5 : ra) - (rb === undefined ? 5 : rb);
+    });
+    if(f.length){
+      var a = f[0].properties || {};
+      out.alert = {event: a.event || "Weather Alert", severity: a.severity || "Unknown"};
+    }
+  }).catch(function(){});
+
+  return Promise.all([obs, fc, al]).then(function(){
+    if(out.temp === undefined && out.hi === undefined) return;   // keep whatever we had
+    if(!out.text && out.short) out.text = out.short;
+    state.wx = out;
+    renderWx();
+  });
+}
+
+function renderWx(){
+  var el = $("wx"), w = state.wx;
+  if(!w || (w.temp === undefined && w.hi === undefined)){ el.hidden = true; return; }
+  el.hidden = false;
+  el.href = w.link || WX.link;
+
+  var severe = false;
+  if(w.alert){
+    var sv = w.alert.severity;
+    severe = (sv === "Extreme" || sv === "Severe");
+  }
+  el.className = "wx" + (severe ? " sev" : "");
+
+  var bits = [];
+  if(w.hi !== undefined && w.hi !== null) bits.push("H " + w.hi + String.fromCharCode(176));
+  if(w.lo !== undefined && w.lo !== null) bits.push("L " + w.lo + String.fromCharCode(176));
+  // With an alert badge there isn't room for the city too, and the alert matters more.
+  if(!w.alert) bits.push(w.label || WX.label);
+
+  var deg = String.fromCharCode(176);
+  el.innerHTML =
+    '<span class="t">' + (w.temp !== undefined ? esc(String(w.temp)) + deg : "--") + '</span>' +
+    '<span class="mid">' +
+      '<span class="c">' + esc(w.text || "Forecast") + '</span>' +
+      '<span class="s">' + esc(bits.join(" \u00b7 ")) + '</span>' +
+    '</span>' +
+    (w.alert ? '<span class="warn">' + esc(w.alert.event) + '</span>' : '') +
+    '<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" ' +
+      'stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>';
 }
 
 /* ============================================================
@@ -994,6 +1117,7 @@ try{
 }catch(e){}
 
 var hadCache = restore();
+renderWx();
 state.booting = !hadCache;   // show skeletons on a cold start
 render();
 load();
