@@ -67,6 +67,17 @@ say says said after before over under about into out up down off then than who w
 how which will would can could may might must should has have had do does did more most some any
 all one two amid watch live update updates video photos analysis opinion report reports""".split())
 
+# Local weather. All National Weather Service: free, no ads, no video, no key required.
+# To move it, GET https://api.weather.gov/points/<lat>,<lon> and copy gridId/gridX/gridY
+# plus the nearest station from the observationStations list.
+WX = {
+    "lat": 35.4676, "lon": -97.5164,
+    "grid": "OUN/97,94",
+    "station": "KOKC",
+    "label": "Oklahoma City",
+}
+WX_LINK = "https://forecast.weather.gov/MapClick.php?lat=%s&lon=%s" % (WX["lat"], WX["lon"])
+
 SIM_THRESHOLD = 0.45      # tuned on live data: real dupes scored >=0.51, nothing false below
 CLUSTER_WINDOW_MS = 48 * 3600 * 1000
 
@@ -361,6 +372,61 @@ def pick_open_representative(cluster):
     return members[0], True
 
 
+def get_nws(url):
+    """NWS asks API clients to identify themselves; it rejects some generic agents."""
+    req = urllib.request.Request(url, headers={
+        "User-Agent": "wire-headline-reader (github.com/josepharmstrong15-spec/wire)",
+        "Accept": "application/geo+json",
+    })
+    with urllib.request.urlopen(req, timeout=15) as r:
+        return json.loads(r.read())
+
+
+def fetch_weather():
+    """Current conditions, today's high/low, and any active alert. None if unavailable."""
+    out = {"label": WX["label"], "link": WX_LINK}
+
+    try:
+        obs = get_nws("https://api.weather.gov/stations/%s/observations/latest" % WX["station"])["properties"]
+        c = (obs.get("temperature") or {}).get("value")
+        if c is not None:
+            out["temp"] = int(round(c * 9.0 / 5.0 + 32))
+        out["text"] = obs.get("textDescription") or ""
+    except Exception:
+        pass
+
+    try:
+        periods = get_nws("https://api.weather.gov/gridpoints/%s/forecast" % WX["grid"])["properties"]["periods"]
+        # First upcoming daytime period is the high, first nighttime one the low.
+        # Ordering flips after dark, so pick by isDaytime rather than by index.
+        for x in periods[:4]:
+            if x.get("isDaytime") and "hi" not in out:
+                out["hi"] = x.get("temperature")
+                out["when"] = x.get("name")
+                out["short"] = x.get("shortForecast") or ""
+            elif not x.get("isDaytime") and "lo" not in out:
+                out["lo"] = x.get("temperature")
+        if not out.get("text") and out.get("short"):
+            out["text"] = out["short"]
+    except Exception:
+        pass
+
+    try:
+        feats = get_nws("https://api.weather.gov/alerts/active?point=%s,%s" % (WX["lat"], WX["lon"]))["features"]
+        rank = {"Extreme": 0, "Severe": 1, "Moderate": 2, "Minor": 3, "Unknown": 4}
+        feats.sort(key=lambda f: rank.get((f["properties"] or {}).get("severity"), 5))
+        if feats:
+            a = feats[0]["properties"]
+            out["alert"] = {"event": a.get("event") or "Weather Alert",
+                            "severity": a.get("severity") or "Unknown"}
+    except Exception:
+        pass
+
+    if "temp" not in out and "hi" not in out:
+        return None
+    return out
+
+
 def main():
     items, errs = [], []
     with ThreadPoolExecutor(max_workers=10) as ex:
@@ -370,6 +436,7 @@ def main():
                 errs.append(err)
     items.extend(espn_news())
     games = espn_schedule()
+    wx = fetch_weather()
     raw_count = len(items)
 
     # drop obviously paywalled domains before doing any work on them
@@ -410,13 +477,19 @@ def main():
 
     final.sort(key=lambda x: x["ts"], reverse=True)
 
-    payload = {"at": int(time.time() * 1000), "items": final[:400], "games": games}
+    payload = {"at": int(time.time() * 1000), "items": final[:400], "games": games, "wx": wx}
     with open("news.json", "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, separators=(",", ":"))
 
     by_cat = {}
     for i in final:
         by_cat[i["c"]] = by_cat.get(i["c"], 0) + 1
+    if wx:
+        print("weather: %s %s / hi %s lo %s%s" % (wx.get("temp"), wx.get("text"),
+              wx.get("hi"), wx.get("lo"),
+              "  ALERT: " + wx["alert"]["event"] if wx.get("alert") else ""))
+    else:
+        print("weather: unavailable")
     print("raw %d -> exact-dedup %d -> clustered %d (%d merged) -> published %d  %s"
           % (raw_count, len(deduped), len(clusters), merged, len(final), by_cat))
     if gated_dropped:
