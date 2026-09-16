@@ -22,6 +22,33 @@ below it contained a genuine false positive (a `$100 billion` SpaceX story vs a
 
 Which outlet wins is set by `SOURCE_RANK` — lower number wins. Reorder it to taste.
 
+## Weather banner
+
+A single tappable banner sits above the search bar showing the current temperature,
+conditions, and today's high and low. Tapping it opens the National Weather Service point
+forecast, which is free, text based, ad free, and has no video.
+
+Everything comes from `api.weather.gov`: no API key, no CORS proxy, and it is the agency
+other forecasts are derived from. Three endpoints are used, each failing independently so
+a partial outage still yields a useful banner:
+
+| Data | Endpoint |
+|---|---|
+| Current conditions | `/stations/KOKC/observations/latest` |
+| High and low | `/gridpoints/OUN,97,94/forecast` |
+| Active alerts | `/alerts/active?point=lat,lon` |
+
+An active alert adds a badge. Severe and Extreme alerts (tornado and severe thunderstorm
+warnings) turn the whole banner red. The city label yields to the badge when one is
+present, since the alert matters more than the location.
+
+If the weather service cannot be reached the banner hides itself rather than showing a
+broken bar.
+
+**Changing the location:** `GET https://api.weather.gov/points/<lat>,<lon>`, then copy
+`gridId/gridX/gridY` and the nearest entry from `observationStations` into the `WX` block
+in both `index.html` and `build_news.py`. It currently points at Oklahoma City.
+
 ## Search
 
 The bar at the top filters every headline currently loaded, across all four sections at
